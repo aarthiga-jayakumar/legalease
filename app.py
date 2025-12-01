@@ -352,21 +352,24 @@ if st.session_state.page == "compare":
         st.markdown("### Quick summaries")
         st.markdown(f"**Contract A**\n\n{sA}")
         st.markdown(f"**Contract B**\n\n{sB}")
-        cmp_prompt = f\"\"\"Compare Contract A vs B. Output:
-1) 3 major differences (bullets)
-2) 3 risks added in B vs A
-3) 1 short recommendation (<=2 sentences)
+        cmp_prompt = f"""
+Compare Contract A and Contract B.
 
-A_summary: {sA}
-A_clauses: {cA}
-A_risks: {rA}
+Contract A:
+{A}
 
-B_summary: {sB}
-B_clauses: {cB}
-B_risks: {rB}
-\"\"\"
+Contract B:
+{B}
+
+Write a structured comparison with:
+- Key similarities
+- Key differences
+- Risks
+- Which contract is more favorable and why
+"""
         comp = call_model(cmp_prompt, max_tokens=400)
         st.markdown("### Comparison (LLM)")
         st.write(comp)
+
 
 # End
