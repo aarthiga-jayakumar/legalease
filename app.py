@@ -29,11 +29,14 @@ def extract_text_from_pdf_bytes(data):
         pages = [p.extract_text() or "" for p in pdf.pages]
     return clean_text("\n".join(pages))
 
-def call_model(prompt, max_tokens=600):
+def call_model(prompt, max_tokens=700):
     resp = client.chat.completions.create(
         model=MODEL_ID,
         messages=[
-            {"role": "system", "content": "You answer concisely with short bullet points."},
+            {"role": "system",
+             "content":
+             "You are a smart legal assistant. You speak in simple English, "
+             "give helpful and correct answers, and format cleanly using headings and bullet points."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=max_tokens
@@ -41,110 +44,87 @@ def call_model(prompt, max_tokens=600):
     return resp.choices[0].message.content.strip()
 
 # ------------------------------
-# ONE PAGE UI
+# UI
 # ------------------------------
-st.set_page_config(page_title="LegalEase — Contract Assistant", layout="wide")
+st.set_page_config(page_title="LegalEase", layout="wide")
 
 st.title("📘 LegalEase — Smart Contract Assistant")
-st.write("Upload a contract or paste text. Ask any question. Get a **one-page** clean result.")
+st.write("Upload a contract or paste text. Ask any question. Get a clean **one-page result**.")
 
 uploaded_pdf = st.file_uploader("📁 Upload PDF", type=["pdf"])
 manual_text = st.text_area("✏️ Or paste contract text", height=180)
-question = st.text_input("💬 Ask a question about the document")
+question = st.text_input("💬 Ask a question (optional, common English supported)")
 
-# Store the document text
+# Store document text
 if "document_text" not in st.session_state:
     st.session_state.document_text = ""
 
-# Build document text from PDF + manual text (merge both)
-doc_text = ""
-
-# If PDF uploaded — add its text
+# Load PDF
 if uploaded_pdf:
-    pdf_text = extract_text_from_pdf_bytes(uploaded_pdf.read())
-    doc_text += pdf_text
+    st.session_state.document_text = extract_text_from_pdf_bytes(uploaded_pdf.read())
+    st.success("PDF loaded!")
 
-# If manual text typed — add it too
+# Load manual text
 if manual_text.strip():
-    doc_text += "\n" + clean_text(manual_text)
-
-# Store final merged text
-st.session_state.document_text = doc_text.strip()
-
+    st.session_state.document_text = clean_text(manual_text)
 
 # ------------------------------
 # PROCESS BUTTON
 # ------------------------------
 if st.button("Send", use_container_width=True):
 
-    if not st.session_state.document_text.strip():
+    doc = st.session_state.document_text.strip()
+
+    if not doc:
         st.error("❌ Upload a PDF or paste text first.")
         st.stop()
 
-    # Question is optional
+    # If user does NOT ask a question → we still answer
     if not question.strip():
-        question = ""
+        question = "Give me a useful overview based on this document."
 
-
-    # STRICT PROMPT – one page only
-    compact_prompt = f"""
-You are LegalEase — you must answer EXACTLY like a helpful assistant
-that explains everything clearly, like ChatGPT.
+    # FINAL MASTER PROMPT  (no loops, clean, one-page, readable)
+    final_prompt = f"""
+You MUST produce a **one-page clean report**.
 
 STYLE RULES:
-- Understand and interpret basic, broken, simple, or informal English questions
-- Use short, meaningful bullet points (not 1–2 word bullets)
-- Use bold text for important phrases (allowed for highlighting)
-- You may highlight key terms using **bold** only (no HTML tags)
-- Use emojis like ✔️ ⚠️ 📌 ➤ when useful
-- Use headings exactly like this:
+- Use **clear headings** (bold allowed)
+- Use short bullet points (8–18 words)
+- No paragraphs
+- No repeated ideas
+- Simple English everyone can understand
+- Highlight key terms using **bold** only
+- Output must not exceed one page visually
 
-📘 Summary  
-📌 Key Clauses  
-⚠️ Risks  
-✔️ Recommendation  
-📥 Answer to Your Question (if a question is provided)
+FORMAT EXACTLY:
 
-- No long paragraphs (max 1–2 lines)
-- No repeating or looping
-- No hallucination — use ONLY the document text
-- If something is missing in the document, say: **Not mentioned in document**
-- Every bullet must be clear and informative (8–18 words)
-- Keep tone simple, clean, and human-friendly
-
-OUTPUT FORMAT (FOLLOW EXACTLY):
-
-📘 **Summary** (3 bullets)
+📘 **Summary (3 bullets)**
 - ...
 
-📌 **Key Clauses** (3–5 bullets)
+📌 **Key Clauses (4 bullets)**
 - ...
 
-⚠️ **Risks** (3 bullets)
+⚠️ **Risks (3 bullets)**
 - ...
 
-✔️ **Recommendation** (1–2 lines)
-...
+💬 **Answer to Your Question**
+1–2 sentence answer in **simple English**, based only on the document.
 
-If the user asked a question:
-📥 **Answer to Your Question**
-- Answer in 1–2 sentences using ONLY document text.
-- If unclear or not found, say: **Not mentioned in document**
+✔️ **Recommendation (max 2 lines)**
+Short and practical suggestion.
+
+---------------------------------
 
 DOCUMENT:
-{st.session_state.document_text}
+{doc}
 
-QUESTION (optional):
+QUESTION:
 {question}
 """
 
+    with st.spinner("Analyzing document..."):
+        answer = call_model(final_prompt, max_tokens=700)
 
-
-    with st.spinner("Analyzing..."):
-        answer = call_model(compact_prompt, max_tokens=500)
-
-    st.subheader("📄 Result")
-    st.markdown(answer, unsafe_allow_html=True)
-
-
+    st.subheader("📄 Final One-Page Result")
+    st.markdown(answer)
 
