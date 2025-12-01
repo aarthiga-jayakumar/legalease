@@ -244,72 +244,74 @@ if st.session_state.page == "home":
     if st.button("Go to Compare", key="home_go_compare"):
         st.session_state.page = "compare"
 
+
 # ------------------------------
-# ANALYZE PAGE
+# ANALYZE PAGE (ONE-PAGE OUTPUT)
 # ------------------------------
 if st.session_state.page == "analyze":
-    st.header("Analyze Contract — Upload PDF or paste text")
-    col1, col2 = st.columns([1,1])
-    with col1:
-        pdf_file = st.file_uploader("Upload a PDF", type=["pdf"], key="an_pdf")
-    with col2:
-        manual_text = st.text_area("Or paste text here", height=200, key="an_text")
-    # Allow a "Load into session" button so uploaded/pasted doc becomes the canonical session doc
-    if st.button("Load document (store for QA & Compare)"):
-        if manual_text and manual_text.strip():
-            st.session_state["document"] = clean_text(manual_text)
-            st.session_state["doc_name"] = "manual text"
-            st.success("Manual text loaded into session for QA/Compare.")
-        elif pdf_file:
-            data = pdf_file.read()
-            txt = extract_text_from_pdf_bytes(data)
-            if not txt.strip():
-                st.warning("PDF text extraction returned empty. Try a different PDF or paste text.")
-            else:
-                st.session_state["document"] = txt
-                st.session_state["doc_name"] = getattr(pdf_file, "name", "uploaded.pdf")
-                st.success(f"PDF loaded into session as '{st.session_state['doc_name']}'.")
-        else:
-            st.error("Please upload a PDF or paste some text to load into session.")
-    # Make it explicit what is currently in session
-    if st.session_state["document"]:
-        st.info(f"Session document: {st.session_state.get('doc_name','(loaded)')[:80]}")
-    else:
-        st.info("No session document loaded. Use 'Load document' after upload/paste.")
 
-    if st.button("Process Document (produce report)"):
-        text = st.session_state.get("document","")
-        source = st.session_state.get("doc_name","session")
-        if not text.strip():
-            st.error("No document loaded. Upload/paste and click 'Load document' first.")
+    st.header("Analyze Contract — One Page Summary")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        pdf_file = st.file_uploader("Upload PDF", type=["pdf"])
+    with col2:
+        manual_text = st.text_area("Or paste text", height=200)
+
+    if st.button("Process"):
+
+        # Extract text
+        if manual_text.strip():
+            text = clean_text(manual_text)
+        elif pdf_file:
+            text = extract_text_from_pdf_bytes(pdf_file.read())
+        else:
+            st.error("Please upload a PDF or paste text.")
             st.stop()
-        with st.spinner("Splitting into sections..."):
-            secs = split_sections(text)
-        report = {"source": source, "sections": []}
-        st.success("Processing sections (short bullets only)...")
-        for s in secs:
-            h = s.get("heading","Section")
-            c = s.get("content","")
-            summ = summarize_section(c)
-            cls = extract_clauses(c)
-            rks = detect_risks(c)
-            report["sections"].append({"heading":h,"content":c,"summary":summ,"clauses":cls,"risks":rks})
-            # Render compact card for each section
-            summ_html = escape(summ).replace("\n","<br/>")
-            cls_html = escape(cls).replace("\n","<br/>")
-            rks_html = escape(rks).replace("\n","<br/>")
-            highlight = highlight_html(c, cls)
-            st.markdown(f"<div style='display:flex;gap:12px;margin-top:18px'>", unsafe_allow_html=True)
-            st.markdown(f"<div style='flex:1;padding:14px;border-radius:10px;background:#f7fbff'><b style='font-size:16px'>{escape(h)}</b><div style='font-size:12px;color:#666;margin-top:8px'>Source: {escape(source)}</div><div style='margin-top:10px;font-size:13px'>{highlight}</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='flex:1;padding:14px;border-radius:10px;background:#fff7f0'><b>Summary</b><div style='margin-top:8px;font-size:13px'>{summ_html}</div></div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='flex:1;padding:14px;border-radius:10px;background:#f3fff6'><b>Clauses</b><div style='margin-top:8px;font-size:13px'>{cls_html}</div></div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='padding:12px;border-radius:8px;background:#fff6f6;margin-top:8px'><b>Risks</b><div style='margin-top:8px;font-size:13px'>{rks_html}</div></div>", unsafe_allow_html=True)
-            st.markdown("---")
-        # download buttons
-        st.download_button("⬇️ Download JSON report", data=json.dumps(report, ensure_ascii=False, indent=2), file_name="legal_ease_report.json", mime="application/json")
-        pdf_bytes = build_pdf_bytes(report)
-        st.download_button("⬇️ Download PDF report", data=pdf_bytes, file_name="legal_ease_report.pdf", mime="application/pdf")
+
+        if not text.strip():
+            st.error("No readable text found.")
+            st.stop()
+
+        # SINGLE compact prompt – very strict
+        compact_prompt = f"""
+You MUST produce a **one-page maximum** report.
+
+RULES:
+- Use SHORT bullet points only (10–12 words max)
+- No paragraphs
+- No looping
+- No repeated ideas
+- No section-by-section output
+- DO NOT expand beyond required bullets
+- Keep everything concise, clean, readable
+
+OUTPUT FORMAT (follow EXACTLY):
+
+📘 Summary (max 3 bullets)
+- ...
+
+📌 Key Clauses (max 4 bullets)
+- ...
+
+⚠️ Risks (exactly 3 bullets)
+- ...
+
+✔ Recommendation (max 2 lines)
+Text…
+
+TEXT TO ANALYZE:
+{text}
+"""
+
+        with st.spinner("Generating concise analysis..."):
+            result = call_model(compact_prompt, max_tokens=500)
+
+        # Display cleanly
+        st.markdown("## Contract Analysis (One Page)")
+        st.markdown(result)
+
+            
 
 # ------------------------------
 # QA PAGE
