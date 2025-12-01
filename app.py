@@ -44,34 +44,100 @@ def call_model(prompt, max_tokens=700):
     return resp.choices[0].message.content.strip()
 
 # ------------------------------
-# UI
+# GOOGLE-STYLE UI
 # ------------------------------
 st.set_page_config(page_title="LegalEase", layout="wide")
 
-st.title("📘 LegalEase — Smart Contract Assistant")
-st.write("Upload a contract or paste text. Ask any question. Get a clean **one-page result**.")
+# ---- GOOGLE STYLE CSS ----
+st.markdown("""
+<style>
 
-uploaded_pdf = st.file_uploader("📁 Upload PDF", type=["pdf"])
-manual_text = st.text_area("✏️ Or paste contract text", height=180)
-question = st.text_input("💬 Ask a question (optional, common English supported)")
+html, body, [class*="css"]  {
+    font-family: 'Inter', sans-serif;
+}
 
-# Store document text
+.main-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a73e8;
+    padding-bottom: 5px;
+}
+
+.sub {
+    font-size: 16px;
+    color: #5f6368;
+    margin-bottom: 25px;
+}
+
+.card {
+    background: #ffffff;
+    padding: 22px;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.result-card {
+    background: #f8fbff;
+    padding: 25px;
+    border-radius: 16px;
+    border-left: 6px solid #1a73e8;
+    margin-top: 15px;
+}
+
+.send-btn {
+    background:#1a73e8;
+    color:white;
+    border:none;
+    padding:10px 20px;
+    border-radius:8px;
+    font-size:17px;
+    font-weight:600;
+    width:100%;
+}
+
+.send-btn:hover {
+    background:#1666d4;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ------------------------------
+# PAGE CONTENT
+# ------------------------------
+st.markdown("<div class='main-title'>📘 LegalEase — Smart AI Contract Assistant</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub'>Upload a contract or paste text. Ask any question. Get a clean one-page Google-style result.</div>", unsafe_allow_html=True)
+
+# Input card
+with st.container():
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+
+    uploaded_pdf = st.file_uploader("📁 Upload PDF", type=["pdf"])
+    manual_text = st.text_area("✏️ Or paste contract text", height=160)
+    question = st.text_input("💬 Ask a question (optional, simple English supported)")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ------------------------------
+# STORE DOCUMENT TEXT
+# ------------------------------
 if "document_text" not in st.session_state:
     st.session_state.document_text = ""
 
-# Load PDF
 if uploaded_pdf:
     st.session_state.document_text = extract_text_from_pdf_bytes(uploaded_pdf.read())
     st.success("PDF loaded!")
 
-# Load manual text
 if manual_text.strip():
     st.session_state.document_text = clean_text(manual_text)
 
 # ------------------------------
 # PROCESS BUTTON
 # ------------------------------
-if st.button("Send", use_container_width=True):
+clicked = st.button("Send", type="primary")
+
+if clicked:
 
     doc = st.session_state.document_text.strip()
 
@@ -79,11 +145,9 @@ if st.button("Send", use_container_width=True):
         st.error("❌ Upload a PDF or paste text first.")
         st.stop()
 
-    # If user does NOT ask a question → we still answer
     if not question.strip():
         question = "Give me a useful overview based on this document."
 
-    # FINAL MASTER PROMPT  (no loops, clean, one-page, readable)
     final_prompt = f"""
 You MUST produce a **one-page clean report**.
 
@@ -122,9 +186,10 @@ QUESTION:
 {question}
 """
 
-    with st.spinner("Analyzing document..."):
+    with st.spinner("Analyzing..."):
         answer = call_model(final_prompt, max_tokens=700)
 
-    st.subheader("📄 Final One-Page Result")
+    st.markdown("<div class='result-card'>", unsafe_allow_html=True)
+    st.markdown("### 📄 Final One-Page Result")
     st.markdown(answer)
-
+    st.markdown("</div>", unsafe_allow_html=True)
