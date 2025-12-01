@@ -56,14 +56,21 @@ question = st.text_input("💬 Ask a question about the document")
 if "document_text" not in st.session_state:
     st.session_state.document_text = ""
 
-# Load PDF
-if uploaded_pdf:
-    st.session_state.document_text = extract_text_from_pdf_bytes(uploaded_pdf.read())
-    st.success("PDF loaded successfully!")
+# Build document text from PDF + manual text (merge both)
+doc_text = ""
 
-# Load manual text
+# If PDF uploaded — add its text
+if uploaded_pdf:
+    pdf_text = extract_text_from_pdf_bytes(uploaded_pdf.read())
+    doc_text += pdf_text
+
+# If manual text typed — add it too
 if manual_text.strip():
-    st.session_state.document_text = clean_text(manual_text)
+    doc_text += "\n" + clean_text(manual_text)
+
+# Store final merged text
+st.session_state.document_text = doc_text.strip()
+
 
 # ------------------------------
 # PROCESS BUTTON
@@ -74,45 +81,70 @@ if st.button("Send", use_container_width=True):
         st.error("❌ Upload a PDF or paste text first.")
         st.stop()
 
+    # Question is optional
     if not question.strip():
-        st.error("❌ Please type a question.")
-        st.stop()
+        question = ""
+
 
     # STRICT PROMPT – one page only
     compact_prompt = f"""
-You MUST produce a one-page result.
+You are LegalEase — you must answer EXACTLY like a helpful assistant
+that explains everything clearly, like ChatGPT.
 
-RULES:
-- Use very short bullet points (max 10–12 words)
-- No paragraphs
-- No repeating ideas
-- No long sentences
-- Use emojis like: ✔ ✘ ⚠ ➤ 📌
-- Follow EXACT format:
+STYLE RULES:
+- Understand and interpret basic, broken, simple, or informal English questions
+- Use short, meaningful bullet points (not 1–2 word bullets)
+- Use bold text for important phrases (allowed for highlighting)
+- You may highlight key terms using **bold** only (no HTML tags)
+- Use emojis like ✔️ ⚠️ 📌 ➤ when useful
+- Use headings exactly like this:
 
-📘 Summary (max 3 bullets)
+📘 Summary  
+📌 Key Clauses  
+⚠️ Risks  
+✔️ Recommendation  
+📥 Answer to Your Question (if a question is provided)
+
+- No long paragraphs (max 1–2 lines)
+- No repeating or looping
+- No hallucination — use ONLY the document text
+- If something is missing in the document, say: **Not mentioned in document**
+- Every bullet must be clear and informative (8–18 words)
+- Keep tone simple, clean, and human-friendly
+
+OUTPUT FORMAT (FOLLOW EXACTLY):
+
+📘 **Summary** (3 bullets)
 - ...
 
-📌 Key Clauses (max 4 bullets)
+📌 **Key Clauses** (3–5 bullets)
 - ...
 
-⚠ Risks (exactly 3 bullets)
+⚠️ **Risks** (3 bullets)
 - ...
 
-✔ Recommendation (max 2 lines)
-Text…
+✔️ **Recommendation** (1–2 lines)
+...
+
+If the user asked a question:
+📥 **Answer to Your Question**
+- Answer in 1–2 sentences using ONLY document text.
+- If unclear or not found, say: **Not mentioned in document**
 
 DOCUMENT:
 {st.session_state.document_text}
 
-QUESTION:
+QUESTION (optional):
 {question}
 """
+
+
 
     with st.spinner("Analyzing..."):
         answer = call_model(compact_prompt, max_tokens=500)
 
     st.subheader("📄 Result")
-    st.markdown(answer)
+    st.markdown(answer, unsafe_allow_html=True)
+
 
 
