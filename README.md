@@ -45,3 +45,27 @@ pytest
 * Very long contracts may exceed the model's context window; there is no chunking yet.
 * Scanned PDFs without a text layer are not supported (no OCR).
 
+
+## REST API
+
+A FastAPI service wraps the same analysis code (`core.py`). Results are stored locally in a SQLite file.
+
+```bash
+pip install -r requirements-api.txt
+export GROQ_API_KEY=your_key_here
+uvicorn api:app --reload
+```
+
+Then open http://127.0.0.1:8000/docs to try it.
+
+| Method | Path | What it does |
+|-|-|-|
+| POST | `/analyze` | Upload a PDF and an optional question. Validates it, extracts the text, runs the analysis, saves the result and returns an id and the report |
+| GET | `/results/{id}` | Returns a saved result |
+| GET | `/health` | Liveness check |
+
+Errors are explicit: 415 for non-PDF files, 400 for an empty file, 413 for files over 10 MB, 422 for an unreadable PDF or a document that is too short, 404 for an unknown id, 503 if the API key is missing and 502 if the model call fails.
+
+Storage lives in `storage.py`, behind a small save and get interface, so the SQLite store can later be replaced by a cloud store without changing the API code.
+
+The Streamlit app is the live demo. The API runs locally and is not deployed.
