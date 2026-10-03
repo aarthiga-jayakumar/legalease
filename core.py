@@ -103,7 +103,7 @@ def get_client():
     return Groq(api_key=key)
 
 
-def call_model(prompt, max_tokens=700, client=None):
+def call_model(prompt, max_tokens=4000, client=None):
     """Send the prompt to the LLM and return the text answer. A client can be injected for tests."""
     client = client or get_client()
     resp = client.chat.completions.create(
@@ -114,7 +114,7 @@ def call_model(prompt, max_tokens=700, client=None):
         ],
         max_tokens=max_tokens,
     )
-    return resp.choices[0].message.content.strip()
+    return (resp.choices[0].message.content or "").strip()
 
 
 def analyze(text, question=None, client=None):

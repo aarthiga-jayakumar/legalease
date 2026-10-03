@@ -62,7 +62,7 @@ def test_call_model_returns_stripped_text_and_uses_model():
     assert core.call_model("hello", client=client) == "mocked report"
     kwargs = client.chat.completions.create.call_args.kwargs
     assert kwargs["model"] == core.MODEL_ID
-    assert kwargs["max_tokens"] == 700
+    assert kwargs["max_tokens"] == 4000
     assert kwargs["messages"][0]["role"] == "system"
     assert kwargs["messages"][1] == {"role": "user", "content": "hello"}
 
