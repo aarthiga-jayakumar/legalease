@@ -69,3 +69,7 @@ Errors are explicit: 415 for non-PDF files, 400 for an empty file, 413 for files
 Storage lives in `storage.py`, behind a small save and get interface, so the SQLite store can later be replaced by a cloud store without changing the API code.
 
 The Streamlit app is the live demo. The API runs locally and is not deployed.
+
+## License
+
+Copyright (c) 2026 Aarthiga Jayakumar. All rights reserved. The source is public for viewing and evaluation only. See LICENSE.
