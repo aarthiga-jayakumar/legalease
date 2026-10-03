@@ -11,7 +11,7 @@ Plain-English contract analysis. Upload a contract PDF or paste its text, option
 3. A structured prompt asks the LLM (openai/gpt-oss-120b via the Groq API) for a fixed one-page format, answering only from the document.
 4. The result is shown in a Streamlit UI.
 
-The first prototype used the Gemini API in Google AI Studio. The deployed version first used Llama 3.3 through Groq; Groq retired that model on August 16, 2026, so it now runs openai/gpt-oss-120b, set through the GROQ\_MODEL environment variable.
+The first prototype used the Gemini API in Google AI Studio. The deployed version first used Llama 3.3 through Groq; Groq retired that model on August 16, 2026, so it now runs openai/gpt-oss-120b, set through the GROQ_MODEL environment variable.
 
 
 
@@ -21,14 +21,14 @@ The first prototype used the Gemini API in Google AI Studio. The deployed versio
 |-|-|
 |`app.py`|Streamlit UI|
 |`core.py`|Text cleaning, PDF extraction, validation, prompt building, LLM call|
-|`tests/test\_core.py`|Unit tests (LLM mocked, no API key needed)|
+|`tests/test_core.py`|Unit tests (LLM mocked, no API key needed)|
 |`src/`|Experimental multi-agent pipeline (orchestrator, classifier, drafter, validator, memory)|
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-export GROQ\_API\_KEY=your\_key\_here      # never commit this
+export GROQ_API_KEY=your_key_here      # never commit this
 streamlit run app.py
 ```
 
