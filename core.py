@@ -6,7 +6,7 @@ import io
 import os
 import re
 
-MODEL_ID = "llama-3.3-70b-versatile"
+MODEL_ID = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 MIN_DOC_CHARS = 50  # below this we refuse to call the model (prevents made-up summaries)
 
 SYSTEM_PROMPT = (
