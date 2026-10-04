@@ -3,3 +3,7 @@ groq
 pypdf
 pdfplumber
 reportlab
+fastapi
+uvicorn
+python-multipart
+boto3

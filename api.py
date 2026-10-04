@@ -1,40 +1,29 @@
 """LegalEase REST API.
 
-POST /analyze          upload a PDF (and an optional question) -> analysis report + result id
-GET  /results/{id}     read a saved result back
-GET  /health           simple liveness check
+POST /analyze      upload a contract PDF (+ optional question) -> stored in S3, analysed, result stored in DynamoDB
+GET  /results/{id} fetch a saved result
+GET  /health       liveness check
 
-Run locally:  uvicorn api:app --reload      then open http://127.0.0.1:8000/docs
+Run locally:  uvicorn api:app --reload      (interactive docs at /docs)
 """
-import os
+import uuid
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel
 
-import core
-from storage import SQLiteStore
+from core import InvalidDocumentError, analyze, extract_text_from_pdf_bytes
+from storage import Storage
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
-app = FastAPI(title="LegalEase API", version="0.1.0")
-
-_store = None
+app = FastAPI(title="LegalEase API", version="1.0")
 
 
-def get_store():
-    """Create the store on first use. Tests replace this with a temporary store."""
-    global _store
-    if _store is None:
-        _store = SQLiteStore(os.environ.get("LEGALEASE_DB", "legalease_results.db"))
-    return _store
-
-
-class ResultOut(BaseModel):
-    id: str
-    filename: str
-    question: str | None = None
-    report: str
-    created_at: str
+def get_storage():
+    """Dependency so tests can swap in a mocked-AWS Storage."""
+    try:
+        return Storage.from_env()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/health")
@@ -42,42 +31,41 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/analyze", response_model=ResultOut)
-def analyze_pdf(
+@app.post("/analyze")
+async def analyze_contract(
     file: UploadFile = File(...),
-    question: str | None = Form(None),
-    store=Depends(get_store),
+    question: str = Form(""),
+    storage: Storage = Depends(get_storage),
 ):
-    filename = file.filename or "upload.pdf"
-    if not filename.lower().endswith(".pdf"):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File is larger than 10 MB.")
+    if not data.startswith(b"%PDF"):
         raise HTTPException(status_code=415, detail="Only PDF files are supported.")
 
-    data = file.file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File is too large (limit 10 MB).")
-
     try:
-        text = core.extract_text_from_pdf_bytes(data)
+        text = extract_text_from_pdf_bytes(data)
     except Exception:
-        raise HTTPException(status_code=422, detail="Could not read text from this PDF.")
+        raise HTTPException(status_code=422, detail="Could not read this PDF.")
 
     try:
-        report = core.analyze(text, question or None)
-    except core.InvalidDocumentError as exc:
+        report = analyze(text, question)
+    except InvalidDocumentError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    except RuntimeError as exc:  # for example GROQ_API_KEY is not set
-        raise HTTPException(status_code=503, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=502, detail="The analysis service failed. Please try again.")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
-    return store.save({"filename": filename, "question": question or None, "report": report})
+    doc_id = uuid.uuid4().hex
+    s3_key = storage.save_upload(doc_id, data)
+    storage.save_result(doc_id, file.filename or "upload.pdf", question, report, s3_key)
+    return {"id": doc_id, "report": report}
 
 
-@app.get("/results/{result_id}", response_model=ResultOut)
-def get_result(result_id: str, store=Depends(get_store)):
-    record = store.get(result_id)
-    if record is None:
+@app.get("/results/{doc_id}")
+def get_result(doc_id: str, storage: Storage = Depends(get_storage)):
+    item = storage.get_result(doc_id)
+    if item is None:
         raise HTTPException(status_code=404, detail="Result not found.")
-    return record
+    return item
