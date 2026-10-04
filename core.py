@@ -6,7 +6,7 @@ import io
 import os
 import re
 
-MODEL_ID = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+MODEL_ID = "llama-3.3-70b-versatile"
 MIN_DOC_CHARS = 50  # below this we refuse to call the model (prevents made-up summaries)
 
 SYSTEM_PROMPT = (
@@ -103,7 +103,7 @@ def get_client():
     return Groq(api_key=key)
 
 
-def call_model(prompt, max_tokens=4000, client=None):
+def call_model(prompt, max_tokens=700, client=None):
     """Send the prompt to the LLM and return the text answer. A client can be injected for tests."""
     client = client or get_client()
     resp = client.chat.completions.create(
@@ -114,7 +114,7 @@ def call_model(prompt, max_tokens=4000, client=None):
         ],
         max_tokens=max_tokens,
     )
-    return (resp.choices[0].message.content or "").strip()
+    return resp.choices[0].message.content.strip()
 
 
 def analyze(text, question=None, client=None):
