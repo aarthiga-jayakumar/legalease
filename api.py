@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 import core
-from storage import SQLiteStore
+from storage import AwsStore, SQLiteStore
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -25,7 +25,10 @@ def get_store():
     """Create the store on first use. Tests replace this with a temporary store."""
     global _store
     if _store is None:
-        _store = SQLiteStore(os.environ.get("LEGALEASE_DB", "legalease_results.db"))
+        if os.environ.get("LEGALEASE_BUCKET"):
+            _store = AwsStore.from_env()  # S3 for PDFs, DynamoDB for results
+        else:
+            _store = SQLiteStore(os.environ.get("LEGALEASE_DB", "legalease_results.db"))
     return _store
 
 
@@ -72,7 +75,7 @@ def analyze_pdf(
     except Exception:
         raise HTTPException(status_code=502, detail="The analysis service failed. Please try again.")
 
-    return store.save({"filename": filename, "question": question or None, "report": report})
+    return store.save({"filename": filename, "question": question or None, "report": report}, pdf=data)
 
 
 @app.get("/results/{result_id}", response_model=ResultOut)

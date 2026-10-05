@@ -21,7 +21,7 @@ The first prototype used the Gemini API in Google AI Studio. The deployed versio
 |-|-|
 |`app.py`|Streamlit UI|
 |`core.py`|Text cleaning, PDF extraction, validation, prompt building, LLM call|
-|`tests/test_core.py`|Unit tests (LLM mocked, no API key needed)|
+|`tests/`|Unit tests (LLM and AWS mocked, no keys or accounts needed)|
 |`src/`|Experimental multi-agent pipeline (orchestrator, classifier, drafter, validator, memory)|
 
 ## Run locally
@@ -66,7 +66,24 @@ Then open http://127.0.0.1:8000/docs to try it.
 
 Errors are explicit: 415 for non-PDF files, 400 for an empty file, 413 for files over 10 MB, 422 for an unreadable PDF or a document that is too short, 404 for an unknown id, 503 if the API key is missing and 502 if the model call fails.
 
-Storage lives in `storage.py`, behind a small save and get interface, so the SQLite store can later be replaced by a cloud store without changing the API code.
+Storage lives in `storage.py`, behind a small `save` and `get` interface with two implementations:
+
+* `SQLiteStore` is the default and needs no setup.
+* `AwsStore` keeps each uploaded PDF in Amazon S3 (`uploads/<id>.pdf`) and the result in Amazon DynamoDB. It is used automatically when `LEGALEASE_BUCKET` is set.
+
+### Using Amazon S3 and DynamoDB
+
+```bash
+pip install -r requirements-api.txt
+aws configure                          # use an IAM user limited to S3 and DynamoDB, region ap-south-1
+python scripts/setup_aws.py            # creates the bucket (public access blocked) and the table
+export LEGALEASE_BUCKET=...            # value printed by the script
+export LEGALEASE_TABLE=legalease-results
+export AWS_REGION=ap-south-1
+uvicorn api:app --reload
+```
+
+The AWS tests use moto, so `pytest` needs no AWS account.
 
 The Streamlit app is the live demo. The API runs locally and is not deployed.
 
